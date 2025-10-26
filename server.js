@@ -14,12 +14,11 @@ const PORT = process.env.PORT || 5000;
 app.use(helmet());
 app.use(express.json({ limit: '12kb' })); // accept JSON
 app.use(express.urlencoded({ extended: true }));
-
 // CORS setup
 const allowedOrigins = [
   'http://localhost:5500',             // local dev (if using Live Server)
   'http://127.0.0.1:5500',            // local dev alternate
-  'https://my-frontend-app.vercel.app' // your live frontend on Vercel
+  'https://my-frontend-app-ecru.vercel.app' // your live frontend on Vercel
 ];
 
 app.use(cors({
@@ -126,4 +125,4 @@ app.post('/api/contact', contactLimiter, async (req, res) => {
 // start server
 app.listen(PORT, () => {
   console.log(`D'wyngs backend running on port ${PORT}`);
-});
+}); 
