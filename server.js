@@ -20,15 +20,17 @@ app.use(express.json({ limit: '12kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ✅ Allow frontend origins (Vercel + local)
-app.use(cors({
+const corsOptions = {
   origin: [
-    'https://my-frontend-app-ecru.vercel.app', // Vercel frontend
-    'http://localhost:5500',
-    'http://127.0.0.1:5500'
+    "https://my-frontend-app-ecru.vercel.app", // ✅ your frontend domain
+    "http://localhost:3000" // ✅ for local testing
   ],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type'],
-}));
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 
 // ==========================
 // ⚙️  Rate Limiting
