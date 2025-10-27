@@ -1,33 +1,50 @@
-// --- SENDGRID VERSION ---
 import express from "express";
 import cors from "cors";
+import bodyParser from "body-parser";
+import formData from "form-data";
+import Mailgun from "mailgun.js";
 import dotenv from "dotenv";
-import sgMail from "@sendgrid/mail";
 
 dotenv.config();
+
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
-// Configure SendGrid
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+  username: "api",
+  key: process.env.MAILGUN_API_KEY,
+});
+
+app.get("/", (req, res) => {
+  res.send("✅ Mailgun backend is live!");
+});
 
 app.post("/api/contact", async (req, res) => {
   const { name, email, subject, message } = req.body;
+
+  if (!name || !email || !message) {
+    return res.status(400).json({ error: "Please fill all required fields." });
+  }
+
+  const data = {
+    from: `${name} <mailgun@${process.env.MAILGUN_DOMAIN}>`,
+    to: process.env.TO_EMAIL,
+    subject: subject || "New Contact Form Submission",
+    text: `Name: ${name}\nEmail: ${email}\nMessage: ${message}`,
+  };
+
   try {
-    const msg = {
-      to: process.env.TO_EMAIL,
-      from: process.env.TO_EMAIL, // must be verified sender
-      subject: `Contact Form: ${subject}`,
-      text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
-    };
-    await sgMail.send(msg);
-    res.status(200).json({ success: true, message: "Email sent successfully!" });
+    const result = await mg.messages.create(process.env.MAILGUN_DOMAIN, data);
+    console.log("✅ Mail sent:", result.id);
+    res.status(200).json({ success: true, id: result.id });
   } catch (error) {
-    console.error("SendGrid error:", error);
-    res.status(500).json({ error: "Failed to send email", details: error.message });
+    console.error("❌ Mailgun Error:", error);
+    res.status(500).json({ error: "Failed to send email." });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+app.listen(process.env.PORT || 10000, () =>
+  console.log(`✅ Server running on port ${process.env.PORT || 10000}`)
+);
