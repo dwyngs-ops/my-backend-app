@@ -1,5 +1,6 @@
-.env
 node_modules/
+.env
+
 
 # Logs and temporary files
 npm-debug.log*
