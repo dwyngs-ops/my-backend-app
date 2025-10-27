@@ -71,18 +71,13 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.warn(`Blocked CORS request from origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: [
+    'https://my-frontend-app-ecru.vercel.app', // your live frontend
+    'http://localhost:5500',                   // for local testing
+    'http://127.0.0.1:5500'
+  ],
   methods: ['GET', 'POST'],
-  credentials: false, // no cookies needed for this API
+  allowedHeaders: ['Content-Type'],
 }));
 
 // Basic rate limiter: allow 6 requests per 10 minutes per IP (adjust as needed)
