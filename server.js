@@ -2,7 +2,55 @@
 require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
-const rateLimit = require('express-rate-limit');
+const contactlimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5,              // 5 requests per minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." }
+});
+
+app.use("/api/contact", contactLimiter);
+app.post("/api/contact", async (req, res) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    // ✅ Validate input
+    if (!name || !email || !subject || !message)
+      return res.status(400).json({ error: "All fields are required." });
+
+    if (!validator.isEmail(email))
+      return res.status(400).json({ error: "Invalid email format." });
+
+    // ✅ Create transporter
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    // ✅ Email options
+    const mailOptions = {
+      from: email,
+      to: process.env.EMAIL_USER,
+      subject: `New message from ${name}: ${subject}`,
+      text: message,
+    };
+
+    // ✅ Send email
+    await transporter.sendMail(mailOptions);
+    console.log("✅ Contact email sent successfully.");
+    res.json({ success: true, message: "Email sent successfully!" });
+  } catch (error) {
+    console.error("❌ Contact send error:", error);
+    res.status(500).json({ error: "Internal server error", details: error.message });
+  }
+});
+
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
+
 const helmet = require('helmet');
 const cors = require('cors');
 const validator = require('validator');
@@ -51,20 +99,21 @@ if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS |
   console.warn('Warning: Missing SMTP / MAIL env variables. Check .env file.');
 }
 
-// Create transporter (works with Gmail SMTP or any other SMTP service)
+// recommended transporter (works with Gmail app password)
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465,
-  secure: (process.env.SMTP_SECURE === 'true') || true,
+  secure: process.env.SMTP_SECURE === 'true' || true, // true for 465
   auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS,
   },
-  // TLS options (optional)
-  tls: {
-    rejectUnauthorized: false
-  }
+  tls: { rejectUnauthorized: false }
 });
+
+transporter.verify()
+  .then(() => console.log('✅ Mailer ready'))
+  .catch(err => console.error('❌ Mailer verify failed:', err.message || err));
 
 // simple health check
 app.get('/api/health', (req, res) => {
