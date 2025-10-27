@@ -1,159 +1,108 @@
-// ==========================
-// D'wyngs Backend - Final Version
-// ==========================
-require('dotenv').config();
-const express = require('express');
-const nodemailer = require('nodemailer');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const cors = require('cors');
-const validator = require('validator');
+require("dotenv").config();
+const express = require("express");
+const nodemailer = require("nodemailer");
+const rateLimit = require("express-rate-limit");
+const helmet = require("helmet");
+const cors = require("cors");
+const validator = require("validator");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ==========================
-// 🛡️  Security & Middleware
-// ==========================
+// ✅ 1️⃣ Security middleware
 app.use(helmet());
-app.use(express.json({ limit: '12kb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
-// ✅ Allow frontend origins (Vercel + local)
-const corsOptions = {
-  origin: [
-    "https://my-frontend-app-ecru.vercel.app", // ✅ your frontend domain
-    "http://localhost:3000" // ✅ for local testing
-  ],
-  methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"],
-  credentials: true
-};
+// ✅ 2️⃣ Allow frontend to connect (update your frontend URL)
+const allowedOrigins = [
+  "https://my-frontend-app-ecru.vercel.app", // your Vercel frontend
+  "http://localhost:3000", // for local testing
+];
 
-app.use(cors(corsOptions));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("CORS not allowed for this origin"));
+      }
+    },
+  })
+);
 
-// ==========================
-// ⚙️  Rate Limiting
-// ==========================
-const contactLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutes
-  max: 6, // limit each IP to 6 requests per 10 minutes
-  message: { error: 'Too many requests, please try again later.' },
+// ✅ 3️⃣ Fix rate limiter for Render
+const limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  limit: 5, // max 5 requests per minute
   standardHeaders: true,
   legacyHeaders: false,
-});
-
-// ==========================
-// 🧩 Check Environment Variables
-// ==========================
-if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS || !process.env.MAIL_TO) {
-  console.warn('⚠️ Missing SMTP or MAIL environment variables. Please check your .env file!');
-}
-
-// ==========================
-// 📧 Mail Transport Setup
-// ==========================
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465,
-  secure: (process.env.SMTP_SECURE === 'true') || true,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
+  skipFailedRequests: true,
+  keyGenerator: (req, res) => {
+    // Render sometimes sends invalid x-forwarded-for header
+    return (
+      (req.headers["x-real-ip"] ||
+        req.headers["x-forwarded-for"] ||
+        req.ip ||
+        "unknown") + req.originalUrl
+    );
   },
-  tls: { rejectUnauthorized: false },
 });
+app.use(limiter);
 
-// Verify transporter (debugging)
-transporter.verify((err, success) => {
-  if (err) {
-    console.error('❌ Mail server not ready:', err.message);
-  } else {
-    console.log('✅ Mail server ready to send emails');
-  }
-});
-
-// ==========================
-// 🩺 Health Check Endpoint
-// ==========================
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', time: new Date().toISOString() });
-});
-
-// ==========================
-// 📬 Contact Form Endpoint
-// ==========================
-app.post('/api/contact', async (req, res) => {
-  const { name, email, subject, message } = req.body;
-
+// ✅ 4️⃣ Contact route
+app.post("/api/contact", async (req, res) => {
   try {
+    const { name, email, subject, message } = req.body;
+
+    // Basic input validation
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ error: "All fields are required." });
+    }
+
+    if (!validator.isEmail(email)) {
+      return res.status(400).json({ error: "Invalid email address." });
+    }
+
+    // ✅ 5️⃣ Setup mail transporter
     const transporter = nodemailer.createTransport({
-      service: 'gmail',
+      service: "gmail",
       auth: {
-        user: process.env.EMAIL_USER, // d.wyngs@gmail.com
-        pass: process.env.EMAIL_PASS  // newj owsj kaqn mcmz
-      }
+        user: process.env.EMAIL_USER, // your Gmail
+        pass: process.env.EMAIL_PASS, // your Gmail App Password
+      },
     });
 
-    const mailOptions = {
-      from: email,
-      to: process.env.EMAIL_USER,
-      subject: `New Message from ${name}: ${subject}`,
-      text: `From: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
-    };
+    // ✅ 6️⃣ Send email
+    await transporter.sendMail({
+      from: `"${name}" <${email}>`,
+      to: process.env.EMAIL_USER, // receiver (you)
+      subject: subject,
+      text: `
+Name: ${name}
+Email: ${email}
 
-    await transporter.sendMail(mailOptions);
-    res.json({ success: true, message: 'Message sent successfully!' });
+Message:
+${message}
+      `,
+    });
+
+    console.log("✅ Email sent successfully");
+    res.json({ success: true, message: "Message sent successfully!" });
   } catch (error) {
-    console.error('❌ Error sending email:', error);
-    res.status(500).json({ error: 'Failed to send message. Try again later.' });
+    console.error("❌ Contact send error:", error);
+    res
+      .status(500)
+      .json({ error: "Failed to send message. Try again later." });
   }
 });
 
-
-    // Sanitize inputs
-    const cleanName = validator.escape(validator.stripLow(name));
-    const cleanEmail = validator.normalizeEmail(email);
-    const cleanSubject = validator.escape(subject || 'Website Enquiry');
-    const cleanMessage = validator.escape(message);
-
-    // Create HTML email
-    const mailHtml = `
-      <div style="font-family:Arial,Helvetica,sans-serif;color:#0a0a0a;">
-        <h2>New Contact from D'wyngs Website</h2>
-        <p><strong>Name:</strong> ${cleanName}</p>
-        <p><strong>Email:</strong> ${cleanEmail}</p>
-        <p><strong>Subject:</strong> ${cleanSubject}</p>
-        <hr/>
-        <p>${cleanMessage.replace(/\n/g, '<br/>')}</p>
-        <hr/>
-        <small style="color:#666;">Received: ${new Date().toLocaleString()}</small>
-      </div>
-    `;
-
-    // Email options
-    const mailOptions = {
-      from: `"${process.env.MAIL_FROM_NAME || "D'wyngs"}" <${process.env.MAIL_FROM_ADDRESS || process.env.SMTP_USER}>`,
-      to: process.env.MAIL_TO,
-      subject: `Website Contact: ${cleanSubject}`,
-      text: `${cleanMessage}\n\nFrom: ${cleanName} <${cleanEmail}>`,
-      html: mailHtml,
-    };
-
-    // Send email
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent:', info.messageId);
-
-    res.json({ success: true, message: 'Message sent successfully!' });
-  } catch (err) {
-    console.error('❌ Contact send error:', err.message || err);
-    res.status(500).json({ error: 'Failed to send message. Try again later.' });
-  }
+// ✅ 7️⃣ Root route
+app.get("/", (req, res) => {
+  res.send("✅ Backend is running successfully!");
 });
 
-// ==========================
-// 🚀 Start the Server
-// ==========================
+// ✅ 8️⃣ Start server
 app.listen(PORT, () => {
-  console.log(`🚀 D'wyngs backend running on port ${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
