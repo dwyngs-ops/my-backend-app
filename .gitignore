@@ -1,7 +1,4 @@
-# Ignore environment secrets
 .env
-
-# Ignore dependencies
 node_modules/
 
 # Logs and temporary files
