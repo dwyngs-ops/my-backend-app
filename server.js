@@ -9,13 +9,13 @@ const validator = require("validator");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ✅ 1. Security & JSON setup
+// 1️⃣ Security and JSON setup
 app.use(helmet());
 app.use(express.json());
 
-// ✅ 2. Allow frontend (CORS)
+// 2️⃣ Allow your frontend to connect
 const allowedOrigins = [
-  "https://my-frontend-app-ecru.vercel.app", // your live frontend on Vercel
+  "https://my-frontend-app-ecru.vercel.app", // your frontend on Vercel
   "http://localhost:3000", // for local testing
 ];
 
@@ -31,10 +31,10 @@ app.use(
   })
 );
 
-// ✅ 3. Rate limiter (avoid spam)
+// 3️⃣ Prevent spam (rate limit)
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  limit: 5, // allow 5 requests per minute
+  limit: 5, // 5 requests max
   standardHeaders: true,
   legacyHeaders: false,
   skipFailedRequests: true,
@@ -49,33 +49,35 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// ✅ 4. Contact route
+// 4️⃣ Contact form route
 app.post("/api/contact", async (req, res) => {
   try {
     const { name, email, subject, message } = req.body;
 
+    // check if fields are empty
     if (!name || !email || !subject || !message) {
       return res.status(400).json({ error: "All fields are required." });
     }
 
+    // check valid email
     if (!validator.isEmail(email)) {
       return res.status(400).json({ error: "Invalid email address." });
     }
 
-    // ✅ 5. Setup nodemailer
+    // 5️⃣ setup email sender
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
+        user: process.env.EMAIL_USER, // Gmail address
+        pass: process.env.EMAIL_PASS, // App password
       },
     });
 
-    // ✅ 6. Send the mail
+    // 6️⃣ send the mail
     await transporter.sendMail({
       from: `"${name}" <${email}>`,
       to: process.env.EMAIL_USER,
-      subject,
+      subject: subject,
       text: `Name: ${name}\nEmail: ${email}\n\nMessage:\n${message}`,
     });
 
@@ -87,12 +89,12 @@ app.post("/api/contact", async (req, res) => {
   }
 });
 
-// ✅ 7. Simple health check
+// 7️⃣ Simple test route
 app.get("/", (req, res) => {
   res.send("✅ Backend is running successfully!");
 });
 
-// ✅ 8. Start the server
+// 8️⃣ Start server
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
