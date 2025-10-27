@@ -83,17 +83,33 @@ app.get('/api/health', (req, res) => {
 // ==========================
 // 📬 Contact Form Endpoint
 // ==========================
-app.post('/api/contact', contactLimiter, async (req, res) => {
-  try {
-    const { name, email, subject = '', message } = req.body || {};
+app.post('/api/contact', async (req, res) => {
+  const { name, email, subject, message } = req.body;
 
-    // Basic validation
-    if (!name || !email || !message) {
-      return res.status(400).json({ error: 'Name, email, and message are required.' });
-    }
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({ error: 'Invalid email address.' });
-    }
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.EMAIL_USER, // d.wyngs@gmail.com
+        pass: process.env.EMAIL_PASS  // newj owsj kaqn mcmz
+      }
+    });
+
+    const mailOptions = {
+      from: email,
+      to: process.env.EMAIL_USER,
+      subject: `New Message from ${name}: ${subject}`,
+      text: `From: ${name}\nEmail: ${email}\n\nMessage:\n${message}`
+    };
+
+    await transporter.sendMail(mailOptions);
+    res.json({ success: true, message: 'Message sent successfully!' });
+  } catch (error) {
+    console.error('❌ Error sending email:', error);
+    res.status(500).json({ error: 'Failed to send message. Try again later.' });
+  }
+});
+
 
     // Sanitize inputs
     const cleanName = validator.escape(validator.stripLow(name));
